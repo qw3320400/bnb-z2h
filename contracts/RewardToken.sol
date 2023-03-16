@@ -4,14 +4,14 @@ pragma solidity ^0.8.0;
 import "./ERC20.sol";
 
 /**
- * @title a testing erc20 lp token
+ * @title a testing erc20 reward token
  * @author jianwei.fang
  */
-contract LPToken is ERC20 {
+contract RewardToken is ERC20 {
 
     address public owner;
 
-    constructor() ERC20("My LPToken", "My-LP", 18, 10**9 * 10**18) {
+    constructor() ERC20("My RewardToken", "RWD", 18, 10**9 * 10**18) {
         owner = msg.sender;
     }
 

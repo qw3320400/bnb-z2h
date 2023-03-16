@@ -30,9 +30,9 @@ contract("LPToken", async accounts => {
         assert.equal((await lptoken.allowance(accounts[2], accounts[0])).toString(), "10000", "accounts2 allowance error");
         await lptoken.transferFrom(accounts[2], accounts[3], "1000");
         assert.equal((await lptoken.allowance(accounts[2], accounts[0])).toString(), "9000", "accounts2 allowance error");
-        assert.equal((await lptoken.balanceOf(accounts[1])).toString(), "1000", "accounts2 balance error");
+        assert.equal((await lptoken.balanceOf(accounts[1])).toString(), "1000", "accounts1 balance error");
         assert.equal((await lptoken.balanceOf(accounts[2])).toString(), "1000", "accounts2 balance error");
-        assert.equal((await lptoken.balanceOf(accounts[3])).toString(), "1000", "accounts2 balance error");
+        assert.equal((await lptoken.balanceOf(accounts[3])).toString(), "1000", "accounts3 balance error");
         assert.equal((await lptoken.totalSupply()).toString(), "10000", "contract totalSupply error");
         assert.equal((await lptoken.maxSupply()).toString(), "1000000000000000000000000000", "contract maxSupply error");
     })
