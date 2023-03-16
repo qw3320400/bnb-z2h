@@ -6,12 +6,14 @@ import "./LPToken.sol";
 
 struct UserInfo {
     uint256 depositAmount;
+    uint256 userPoolDebt;
 }
 
 struct PoolInfo {
     address lpToken;
     uint256 weight;
     uint256 totalReward;
+    uint256 depositAmount;
 }
 
 /**
@@ -61,29 +63,84 @@ contract Minning {
         // add pool will change the pool weight, so collect reward first
         _mintRewardToken();
 
-        PoolInfo memory pool = PoolInfo(lpToken, weight, 0);
+        PoolInfo memory pool = PoolInfo(lpToken, weight, 0, 0);
         poolList.push(pool);
         poolTotalWeight += pool.weight;
     }
 
     function deposit(uint256 _poolIndex, uint256 amount) external {
-        require(amount > 0, "deposit amount error");
+        // auto mint reward token
+        _mintRewardToken();
+        // auto claim reward
+        _claim(_poolIndex);
+        if (amount == 0) {
+            return;
+        }
 
         PoolInfo storage pool = poolList[_poolIndex];
         UserInfo storage user = userInfo[msg.sender][_poolIndex];
-        // auto claim reward
-
         require(
             LPToken(pool.lpToken).transferFrom(msg.sender, address(this), amount),
             "transferFrom fail"
         );
+        // first time user enter pool, set userPoolDebt
+        if (user.depositAmount == 0) {
+            user.userPoolDebt = pool.totalReward;
+        }
         user.depositAmount += amount;
+        pool.depositAmount += amount;
 
         emit Deposit(msg.sender, _poolIndex, amount);
     }
 
-    function _claim(uint256 _poolIndex) internal {
+    function withdraw(uint256 _poolIndex, uint256 amount) external {
+        // auto mint reward token
+        _mintRewardToken();
+        // auto claim reward
+        _claim(_poolIndex);
+        if (amount == 0) {
+            return;
+        }
 
+        PoolInfo storage pool = poolList[_poolIndex];
+        UserInfo storage user = userInfo[msg.sender][_poolIndex];
+        // if user do not have enough balance, will underflow here
+        user.depositAmount -= amount;
+        pool.depositAmount -= amount;
+        require(
+            LPToken(pool.lpToken).transferFrom(address(this), msg.sender, amount),
+            "transferFrom fail"
+        );
+
+        emit Withdraw(msg.sender, _poolIndex, amount);
+    }
+
+    function claim(uint256 _poolIndex) external {
+        // auto mint reward token
+        _mintRewardToken();
+        // auto claim reward
+        _claim(_poolIndex);
+    }
+
+    function claimable(uint256 _poolIndex) public view returns (uint256) {
+        PoolInfo storage pool = poolList[_poolIndex];
+        UserInfo storage user = userInfo[msg.sender][_poolIndex];
+        if (pool.depositAmount == 0) {
+            return 0;
+        }
+        return (pool.totalReward - user.userPoolDebt) * user.depositAmount / pool.depositAmount;
+    }
+
+    function _claim(uint256 _poolIndex) internal {
+        uint256 rewardAmount = claimable(_poolIndex);
+        if (rewardAmount == 0) {
+            return;
+        }
+        userInfo[msg.sender][_poolIndex].userPoolDebt = poolList[_poolIndex].totalReward;
+        require(
+            RewardToken(rewardToken).transferFrom(address(this), msg.sender, rewardAmount),
+            "transferFrom fail"
+        );
     }
 
     /**

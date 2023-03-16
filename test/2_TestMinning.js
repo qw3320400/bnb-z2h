@@ -51,6 +51,7 @@ contract("Minning", async accounts => {
     })
     it("reward minning", async() => {
         let minning = await Minning.deployed();
+        let rewardtoken = await RewardToken.at(await minning.rewardToken());
         let lastRewardBlock = BigInt(await minning.lastRewardBlock());
         let pool0 = await minning.getPoolInfo(0);
         let pool1 = await minning.getPoolInfo(1);
@@ -64,6 +65,26 @@ contract("Minning", async accounts => {
         let reward = (latestBlock-lastRewardBlock)*BigInt("100000000000000000000")/BigInt(100)
         assert.equal(BigInt(pool0["totalReward"]), BigInt("100000000000000000000")*lastRewardBlock+reward*BigInt(70), "pool0 reward error");
         assert.equal(BigInt(pool1["totalReward"]), reward*BigInt(30), "pool1 reward error");
+        assert.equal(BigInt(await rewardtoken.balanceOf(minning.address)), BigInt("100000000000000000000")*latestBlock, "minning balance error");
+    })
+    it("deposit withdraw", async() => {
+        let minning = await Minning.deployed();
+        console.log("block:", await web3.eth.getBlockNumber());
+        await minning.deposit(0, "1000000000000000000000", {from: accounts[1]});
+        console.log("block:", await web3.eth.getBlockNumber());
+        await minning.deposit(0, "1000000000000000000000", {from: accounts[2]});
+        console.log("block:", await web3.eth.getBlockNumber());
+        await minning.deposit(1, "1000000000000000000000", {from: accounts[3]});
+        console.log("block:", await web3.eth.getBlockNumber());
+        let pool0 = await minning.getPoolInfo(0);
+        let pool1 = await minning.getPoolInfo(1);
+        assert.equal(BigInt(pool0["depositAmount"]), BigInt("2000000000000000000000"), "pool0 depositAmount error");
+        assert.equal(BigInt(pool1["depositAmount"]), BigInt("1000000000000000000000"), "pool1 depositAmount error");
+        console.log("reward:", 
+            (await minning.claimable(0, {from: accounts[1]})).toString(),
+            (await minning.claimable(0, {from: accounts[2]})).toString(),
+            (await minning.claimable(1, {from: accounts[3]})).toString()
+        );
     })
 
 })
