@@ -35,9 +35,11 @@ contract ERC20 {
     }
 
     function transferFrom(address _from, address _to, uint256 _value) public virtual returns (bool) {
-        // check allowence
-        require(_from == msg.sender || _isApproved(_from, msg.sender, _value), "transfer is not approved");
-        _approve(_from, msg.sender, allowance[_from][msg.sender]-_value);
+        // if _from is msg.sender, do not need to approve
+        if (_from != msg.sender) {
+            // if no enough allowance, will overflow here
+            _approve(_from, msg.sender, allowance[_from][msg.sender]-_value);
+        }
         _transfer(_from, _to, _value);
         return true;
     }

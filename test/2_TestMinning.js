@@ -14,11 +14,12 @@ contract("Minning", async accounts => {
         // minning
         assert.equal((await minning.startRewardBlock()).toString(), "0", "startRewardBlock owner error");
         assert.equal((await minning.lastRewardBlock()).toString(), "0", "lastRewardBlock owner error");
-        assert.equal((await minning.tokenMintEachBlock()).toString(), "100000000000000000000", "tokenMintEachBlock owner error");
+        assert.equal((await minning.tokenMintEachBlock()).toString(), "10000", "tokenMintEachBlock owner error");
     })
     it("add pool", async() => {
         let minning = await Minning.deployed();
         let lptoken = await LPToken.deployed();
+        let rewardtoken = await RewardToken.at(await minning.rewardToken());
         // pool0
         await minning.addPool(lptoken.address, 70);
         assert.equal((await minning.getPoolLength()).toString(), "1", "pool length error");
@@ -31,60 +32,95 @@ contract("Minning", async accounts => {
         let pool1 = await minning.getPoolInfo(1);
         assert.equal(pool1["lpToken"], lptoken.address, "lpToken error");
         assert.equal(pool1["weight"].toString(), "30", "pool weight error");
+        // minning reward
+        await minning.testMintRewardToken();
+        let block = BigInt(await minning.lastRewardBlock());
+        pool0 = await minning.getPoolInfo(0);
+        pool1 = await minning.getPoolInfo(1);
+        assert.equal(BigInt(pool0["rewardPerLPToken"]), 0, "pool0 rewardPerLPToken error");
+        assert.equal(BigInt(pool1["rewardPerLPToken"]), 0, "pool1 rewardPerLPToken error");
+        assert.equal(BigInt(await rewardtoken.balanceOf(minning.address)), BigInt("10000")*block, "minning reward balance error");
     })
     it("prepare lp balance and approval", async() => {
         let minning = await Minning.deployed();
         let lptoken = await LPToken.deployed();
         assert.equal((await lptoken.totalSupply()).toString(), "0", "lptoken totalSupply error");
-        await lptoken.mint(accounts[1], "1000000000000000000000");
-        await lptoken.mint(accounts[2], "1000000000000000000000");
-        await lptoken.mint(accounts[3], "1000000000000000000000");
-        assert.equal((await lptoken.balanceOf(accounts[1])).toString(), "1000000000000000000000", "accounts1 balance error");
-        assert.equal((await lptoken.balanceOf(accounts[2])).toString(), "1000000000000000000000", "accounts2 balance error");
-        assert.equal((await lptoken.balanceOf(accounts[3])).toString(), "1000000000000000000000", "accounts3 balance error");
-        await lptoken.approve(minning.address, "10000000000000000000000", {from: accounts[1]});
-        await lptoken.approve(minning.address, "10000000000000000000000", {from: accounts[2]});
-        await lptoken.approve(minning.address, "10000000000000000000000", {from: accounts[3]});
-        assert.equal((await lptoken.allowance(accounts[1], minning.address)).toString(), "10000000000000000000000", "accounts1 allowance error");
-        assert.equal((await lptoken.allowance(accounts[2], minning.address)).toString(), "10000000000000000000000", "accounts1 allowance error");
-        assert.equal((await lptoken.allowance(accounts[3], minning.address)).toString(), "10000000000000000000000", "accounts1 allowance error");
-    })
-    it("reward minning", async() => {
-        let minning = await Minning.deployed();
-        let rewardtoken = await RewardToken.at(await minning.rewardToken());
-        let lastRewardBlock = BigInt(await minning.lastRewardBlock());
-        let pool0 = await minning.getPoolInfo(0);
-        let pool1 = await minning.getPoolInfo(1);
-        assert.equal(BigInt(pool0["totalReward"]), BigInt("100000000000000000000")*lastRewardBlock, "pool0 reward error");
-        assert.equal(pool1["totalReward"].toString(), "0", "pool1 reward error");
-        await increase(10);
-        await minning.testMintRewardToken();
-        latestBlock = BigInt(await minning.lastRewardBlock());
-        pool0 = await minning.getPoolInfo(0);
-        pool1 = await minning.getPoolInfo(1);
-        let reward = (latestBlock-lastRewardBlock)*BigInt("100000000000000000000")/BigInt(100)
-        assert.equal(BigInt(pool0["totalReward"]), BigInt("100000000000000000000")*lastRewardBlock+reward*BigInt(70), "pool0 reward error");
-        assert.equal(BigInt(pool1["totalReward"]), reward*BigInt(30), "pool1 reward error");
-        assert.equal(BigInt(await rewardtoken.balanceOf(minning.address)), BigInt("100000000000000000000")*latestBlock, "minning balance error");
+        await lptoken.mint(accounts[1], "100");
+        await lptoken.mint(accounts[2], "100");
+        await lptoken.mint(accounts[3], "100");
+        assert.equal((await lptoken.balanceOf(accounts[1])).toString(), "100", "accounts1 balance error");
+        assert.equal((await lptoken.balanceOf(accounts[2])).toString(), "100", "accounts2 balance error");
+        assert.equal((await lptoken.balanceOf(accounts[3])).toString(), "100", "accounts3 balance error");
+        await lptoken.approve(minning.address, "1000", {from: accounts[1]});
+        await lptoken.approve(minning.address, "1000", {from: accounts[2]});
+        await lptoken.approve(minning.address, "1000", {from: accounts[3]});
+        assert.equal((await lptoken.allowance(accounts[1], minning.address)).toString(), "1000", "accounts1 allowance error");
+        assert.equal((await lptoken.allowance(accounts[2], minning.address)).toString(), "1000", "accounts2 allowance error");
+        assert.equal((await lptoken.allowance(accounts[3], minning.address)).toString(), "1000", "accounts3 allowance error");
     })
     it("deposit withdraw", async() => {
         let minning = await Minning.deployed();
-        console.log("block:", await web3.eth.getBlockNumber());
-        await minning.deposit(0, "1000000000000000000000", {from: accounts[1]});
-        console.log("block:", await web3.eth.getBlockNumber());
-        await minning.deposit(0, "1000000000000000000000", {from: accounts[2]});
-        console.log("block:", await web3.eth.getBlockNumber());
-        await minning.deposit(1, "1000000000000000000000", {from: accounts[3]});
-        console.log("block:", await web3.eth.getBlockNumber());
+        let lptoken = await LPToken.deployed();
+        let rewardtoken = await RewardToken.at(await minning.rewardToken());
+        // deposit
+        await minning.deposit(0, "100", {from: accounts[1]});
+        let block1 = BigInt(await minning.lastRewardBlock());
+        await minning.deposit(0, "100", {from: accounts[2]});
+        let block2 = BigInt(await minning.lastRewardBlock());
+        await minning.deposit(1, "100", {from: accounts[3]});
+        let block3 = BigInt(await minning.lastRewardBlock());
         let pool0 = await minning.getPoolInfo(0);
         let pool1 = await minning.getPoolInfo(1);
-        assert.equal(BigInt(pool0["depositAmount"]), BigInt("2000000000000000000000"), "pool0 depositAmount error");
-        assert.equal(BigInt(pool1["depositAmount"]), BigInt("1000000000000000000000"), "pool1 depositAmount error");
-        console.log("reward:", 
-            (await minning.claimable(0, {from: accounts[1]})).toString(),
-            (await minning.claimable(0, {from: accounts[2]})).toString(),
-            (await minning.claimable(1, {from: accounts[3]})).toString()
-        );
+        let decimal = BigInt(await minning.DECIMAL());
+        assert.equal(BigInt(pool0["lpTokenAmount"]), BigInt("200"), "pool0 lpToken error");
+        assert.equal(BigInt(pool1["lpTokenAmount"]), BigInt("100"), "pool1 lpToken error");
+        assert.equal(
+            BigInt(pool0["rewardPerLPToken"]), 
+            (block2-block1)*BigInt("10000")*decimal*BigInt(70)/BigInt(100)/BigInt(100) + 
+                (block3-block2)*BigInt("10000")*decimal*BigInt(70)/BigInt(100)/BigInt(200), 
+            "pool0 rewardPerLPToken error");
+        assert.equal(BigInt(pool1["rewardPerLPToken"]), 0, "pool1 rewardPerLPToken error");
+        assert.equal(
+            BigInt((await minning.claimable(0, {from: accounts[1]}))), 
+            (block2-block1)*BigInt("10000")*BigInt(70)/BigInt(100) +
+                (block3-block2)*BigInt("10000")*BigInt(70)/BigInt(100)/BigInt(2),
+            "accounts1 claimable error");
+        assert.equal(
+            BigInt((await minning.claimable(0, {from: accounts[2]}))), 
+            (block3-block2)*BigInt("10000")*BigInt(70)/BigInt(100)/BigInt(2),
+            "accounts2 claimable error");
+        assert.equal(
+            BigInt((await minning.claimable(1, {from: accounts[3]}))), 
+            0, 
+            "accounts3 claimable error");
+        // withdraw
+        await minning.withdraw(0, "50", {from: accounts[1]});
+        let block4 = BigInt(await minning.lastRewardBlock());
+        assert.equal((await lptoken.balanceOf(accounts[1])).toString(), "50");
+        assert.equal(
+            BigInt((await rewardtoken.balanceOf(accounts[1]))), 
+            (block2-block1)*BigInt("10000")*BigInt(70)/BigInt(100) + 
+                (block3-block2)*BigInt("10000")*BigInt(70)/BigInt(100)/BigInt(2) +
+                (block4-block3)*BigInt("10000")*BigInt(70)/BigInt(100)/BigInt(2), 
+            "accounts1 balance error");
+        assert.equal(
+            BigInt((await minning.claimable(0, {from: accounts[2]}))), 
+            (block3-block2)*BigInt("10000")*BigInt(70)/BigInt(100)/BigInt(2) +
+                (block4-block3)*BigInt("10000")*BigInt(70)/BigInt(100)/BigInt(2),
+            "accounts2 claimable error");
+        assert.equal(
+            BigInt((await minning.claimable(1, {from: accounts[3]}))), 
+            (block4-block3)*BigInt("10000")*BigInt(30)/BigInt(100), 
+            "accounts3 claimable error");
+        // claim
+        await minning.claim(0, {from: accounts[2]});
+        let block5 = BigInt(await minning.lastRewardBlock());
+        assert.equal(
+            BigInt((await rewardtoken.balanceOf(accounts[2]))), 
+            (block3-block2)*BigInt("10000")*BigInt(70)/BigInt(100)/BigInt(2) +
+                (block4-block3)*BigInt("10000")*BigInt(70)/BigInt(100)/BigInt(2) +
+                (block5-block4)*BigInt("10000")*BigInt(70)/BigInt(100)*BigInt(2)/BigInt(3),
+            "accounts2 balance error");
     })
 
 })
