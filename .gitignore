@@ -1,3 +1,4 @@
 .deps
-*/artifacts
+artifacts
 build
+node_modules
